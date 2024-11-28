@@ -1,4 +1,4 @@
-na aplicación web construida con Streamlit que te permite chatear con Claude 3.5 Sonnet utilizando la API de Anthropic.
+Una aplicación web construida con Streamlit que te permite chatear con Claude 3.5 Sonnet utilizando la API de Anthropic.
 
 ## ✨ Características
 

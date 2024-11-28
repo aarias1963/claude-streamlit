@@ -40,6 +40,10 @@ def main():
     st.sidebar.title("⚙️ Configuración")
     api_key = st.sidebar.text_input("API Key de Anthropic", type="password")
     
+    # Inicialización de estados
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    
     # Validación de API Key
     if not api_key:
         st.sidebar.warning("Por favor, introduce tu API Key de Anthropic para comenzar.")
@@ -50,15 +54,17 @@ def main():
     if "chat_app" not in st.session_state or st.session_state.current_api_key != api_key:
         st.session_state.chat_app = ChatApp(api_key)
         st.session_state.current_api_key = api_key
-    
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
 
     # Título y descripción
     st.title("💬 Chat con Claude 3.5 Sonnet")
     st.markdown("""
     Esta aplicación te permite chatear con Claude 3.5 Sonnet usando la API de Anthropic.
     """)
+
+    # Botón para limpiar la conversación en la barra lateral
+    if st.sidebar.button("🗑️ Limpiar conversación"):
+        st.session_state.messages = []
+        st.rerun()  # Usando st.rerun() en lugar de experimental_rerun()
 
     # Mostrar mensajes existentes
     for msg in st.session_state.messages:
@@ -84,11 +90,6 @@ def main():
         # Guardar respuesta del asistente
         assistant_message = ChatMessage("assistant", response)
         st.session_state.messages.append(assistant_message)
-
-    # Botón para limpiar la conversación en la barra lateral
-    if st.sidebar.button("🗑️ Limpiar conversación"):
-        st.session_state.messages = []
-        st.experimental_rerun()
 
 if __name__ == "__main__":
     main()

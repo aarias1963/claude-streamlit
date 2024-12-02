@@ -6,6 +6,7 @@ import PyPDF2
 import io
 import pandas as pd
 import re
+import uuid
 
 class ChatMessage:
     def __init__(self, role: str, content: str):
@@ -18,18 +19,36 @@ class ChatApp:
         
     def generate_response(self, messages: List[ChatMessage], pdf_content: str = "") -> str:
         try:
+            # Mensaje del sistema para búsqueda exhaustiva
+            system_message = {
+                "role": "system",
+                "content": """Eres un asistente especializado en análisis exhaustivo de documentos. Cuando se te pida buscar o analizar información:
+                1. Debes realizar una búsqueda EXHAUSTIVA y COMPLETA de TODAS las actividades, ejercicios o elementos que cumplan con los criterios especificados.
+                2. No debes omitir ningún resultado que cumpla con los criterios de búsqueda.
+                3. Organiza los resultados de forma clara, preferiblemente en formato tabular cuando sea apropiado.
+                4. Si encuentras múltiples elementos, debes listarlos TODOS, no solo algunos ejemplos.
+                5. Si la búsqueda inicial no es completa, debes realizar búsquedas adicionales hasta agotar todas las posibilidades.
+                6. Confirma explícitamente cuando hayas completado la búsqueda exhaustiva.
+                """
+            }
+            
+            # Si hay contenido del PDF, añadirlo al contexto
             if pdf_content:
                 context_message = ChatMessage(
                     "user", 
-                    f"Contexto del PDF:\n\n{pdf_content}\n\nPor favor, ten en cuenta este contexto para responder a mis siguientes preguntas."
+                    f"Contexto del PDF:\n\n{pdf_content}\n\nPor favor, realiza una búsqueda exhaustiva y completa en este contenido para responder a mis preguntas."
                 )
-                messages = [context_message] + messages
+                formatted_messages = [system_message] + [{"role": "user", "content": context_message.content}]
+            else:
+                formatted_messages = [system_message]
             
-            formatted_messages = [
+            # Añadir el resto de mensajes
+            formatted_messages.extend([
                 {"role": msg.role, "content": msg.content}
                 for msg in messages
-            ]
+            ])
             
+            # Crear el mensaje con Claude
             response = self.client.messages.create(
                 model="claude-3-5-sonnet-20241022",
                 max_tokens=4096,
@@ -52,14 +71,12 @@ def extract_text_from_pdf(pdf_file):
         return f"Error al procesar el PDF: {str(e)}"
 
 def detect_and_convert_csv(text):
-    # Buscar contenido que parezca CSV (líneas con comas o tabulaciones)
     lines = text.split('\n')
     csv_blocks = []
     current_block = []
     in_csv_block = False
     
     for line in lines:
-        # Detectar si la línea parece ser CSV (contiene comas o tabs y tiene estructura consistente)
         is_csv_line = (',' in line or '\t' in line) and len(line.strip()) > 0
         
         if is_csv_line:
@@ -68,50 +85,53 @@ def detect_and_convert_csv(text):
             current_block.append(line)
         else:
             if in_csv_block:
-                if len(current_block) > 1:  # Al menos cabecera y una fila
+                if len(current_block) > 1:
                     csv_blocks.append(current_block)
                 current_block = []
                 in_csv_block = False
             st.write(line)
     
-    # No olvidar el último bloque si termina el texto con CSV
     if in_csv_block and len(current_block) > 1:
         csv_blocks.append(current_block)
     
-    # Procesar cada bloque CSV encontrado
-    for block in csv_blocks:
+    for i, block in enumerate(csv_blocks):
         try:
-            # Convertir el bloque a DataFrame
+            block_id = str(uuid.uuid4())
+            
             df = pd.read_csv(io.StringIO('\n'.join(block)))
             
-            # Mostrar el DataFrame con Streamlit
             st.dataframe(df)
             
-            # Añadir botón de descarga
-            csv_data = df.to_csv(index=False)
-            st.download_button(
-                label="📥 Descargar CSV",
-                data=csv_data,
-                file_name="datos.csv",
-                mime="text/csv"
-            )
+            col1, col2 = st.columns(2)
             
-            # Añadir botón de descarga Excel
+            csv_data = df.to_csv(index=False)
+            with col1:
+                st.download_button(
+                    label="📥 Descargar CSV",
+                    data=csv_data,
+                    file_name=f"datos_{i}.csv",
+                    mime="text/csv",
+                    key=f"csv_{block_id}"
+                )
+            
             excel_data = io.BytesIO()
             df.to_excel(excel_data, index=False, engine='openpyxl')
             excel_data.seek(0)
-            st.download_button(
-                label="📥 Descargar Excel",
-                data=excel_data,
-                file_name="datos.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            with col2:
+                st.download_button(
+                    label="📥 Descargar Excel",
+                    data=excel_data,
+                    file_name=f"datos_{i}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"excel_{block_id}"
+                )
+            
         except Exception as e:
             st.error(f"Error al procesar datos tabulares: {str(e)}")
             st.text('\n'.join(block))
 
 def main():
-    st.set_page_config(page_title="Chat con Claude 3.5 Sonnet", page_icon="🤖")
+    st.set_page_config(page_title="Chat con Claude 3.5 Sonnet", page_icon="🤖", layout="wide")
     
     st.sidebar.title("⚙️ Configuración")
     api_key = st.sidebar.text_input("API Key de Anthropic", type="password")
@@ -143,41 +163,12 @@ def main():
     st.title("💬 Chat con Claude 3.5 Sonnet")
     st.markdown("""
     Esta aplicación te permite chatear con Claude 3.5 Sonnet usando la API de Anthropic.
-    Si cargas un PDF, Claude podrá responder preguntas sobre su contenido.
+    Si cargas un PDF, Claude realizará búsquedas exhaustivas en su contenido.
     """)
 
     if st.session_state.pdf_content:
-        st.info(f"📄 PDF cargado y listo para consultas")
+        st.info(f"📄 PDF cargado y listo para búsquedas exhaustivas")
 
     if st.sidebar.button("🗑️ Limpiar conversación"):
         st.session_state.messages = []
-        st.rerun()
-
-    for msg in st.session_state.messages:
-        with st.chat_message(msg.role):
-            if msg.role == "assistant":
-                detect_and_convert_csv(msg.content)
-            else:
-                st.write(msg.content)
-
-    if prompt := st.chat_input("Escribe tu mensaje aquí...", key="user_input"):
-        user_message = ChatMessage("user", prompt)
-        st.session_state.messages.append(user_message)
-        
-        with st.chat_message("user"):
-            st.write(prompt)
-
-        with st.chat_message("assistant"):
-            message_placeholder = st.empty()
-            with st.spinner("Generando respuesta..."):
-                response = st.session_state.chat_app.generate_response(
-                    st.session_state.messages,
-                    st.session_state.pdf_content
-                )
-            detect_and_convert_csv(response)
-        
-        assistant_message = ChatMessage("assistant", response)
-        st.session_state.messages.append(assistant_message)
-
-if __name__ == "__main__":
-    main()
+        st.re

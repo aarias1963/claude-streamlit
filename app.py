@@ -41,7 +41,14 @@ def main():
         st.session_state.pdf_content = ""
 
     # Main content
-    st.title("💬 Chat con Claude 3.5 Sonnet")
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.title("💬 Chat con Claude 3.5 Sonnet")
+    with col2:
+        if st.button("🗑️ Limpiar Conversación", type="primary", use_container_width=True):
+            st.session_state.messages = []
+            st.rerun()
+
     st.markdown("""
     Esta aplicación te permite chatear con Claude 3.5 Sonnet usando la API de Anthropic.
     Si cargas un PDF, Claude realizará búsquedas exhaustivas en su contenido.
@@ -82,7 +89,13 @@ def main():
                     # Create system message
                     messages = [{
                         "role": "system",
-                        "content": "Eres un asistente especializado en análisis exhaustivo de documentos."
+                        "content": """Eres un asistente especializado en análisis exhaustivo de documentos. Cuando se te pida buscar o analizar información:
+                        1. Realiza una búsqueda EXHAUSTIVA y COMPLETA de TODAS las actividades, ejercicios o elementos que cumplan con los criterios especificados.
+                        2. No omitas ningún resultado que cumpla con los criterios de búsqueda.
+                        3. Organiza los resultados de forma clara, preferiblemente en formato tabular cuando sea apropiado.
+                        4. Si encuentras múltiples elementos, debes listarlos TODOS, no solo algunos ejemplos.
+                        5. Si la búsqueda inicial no es completa, realiza búsquedas adicionales hasta agotar todas las posibilidades.
+                        6. Confirma explícitamente cuando hayas completado la búsqueda exhaustiva."""
                     }]
 
                     # Add PDF content if exists
@@ -97,23 +110,19 @@ def main():
                         messages.append({"role": msg.role, "content": msg.content})
 
                     # Get response from Claude
-                    response = client.messages.create(
-                        model="claude-3-5-sonnet-20241022",
-                        max_tokens=4096,
-                        messages=messages
-                    )
+                    with st.spinner('Realizando búsqueda exhaustiva...'):
+                        response = client.messages.create(
+                            model="claude-3-5-sonnet-20241022",
+                            max_tokens=4096,
+                            messages=messages
+                        )
 
-                    assistant_response = response.content[0].text
-                    st.write(assistant_response)
-                    st.session_state.messages.append(ChatMessage("assistant", assistant_response))
+                        assistant_response = response.content[0].text
+                        st.write(assistant_response)
+                        st.session_state.messages.append(ChatMessage("assistant", assistant_response))
 
                 except Exception as e:
                     st.error(f"Error en la comunicación con Claude: {str(e)}")
-
-        # Clear chat button
-        if st.sidebar.button("🗑️ Limpiar chat"):
-            st.session_state.messages = []
-            st.rerun()
 
     except Exception as e:
         st.error(f"Error de inicialización: {str(e)}")

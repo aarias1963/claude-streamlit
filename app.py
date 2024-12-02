@@ -30,9 +30,15 @@ def main():
     st.sidebar.title("⚙️ Configuración")
     api_key = st.sidebar.text_input("API Key de Anthropic", type="password")
 
-    # PDF uploader
+    # PDF uploader en sidebar
     st.sidebar.markdown("### 📄 Cargar PDF")
     pdf_file = st.sidebar.file_uploader("Sube un archivo PDF", type=['pdf'])
+
+    # Botón de limpieza en sidebar
+    st.sidebar.markdown("### 🗑️ Gestión del Chat")
+    if st.sidebar.button("Limpiar Conversación", type="primary", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
 
     # Initialize session state
     if "messages" not in st.session_state:
@@ -41,14 +47,7 @@ def main():
         st.session_state.pdf_content = ""
 
     # Main content
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.title("💬 Chat con Claude 3.5 Sonnet")
-    with col2:
-        if st.button("🗑️ Limpiar Conversación", type="primary", use_container_width=True):
-            st.session_state.messages = []
-            st.rerun()
-
+    st.title("💬 Chat con Claude 3.5 Sonnet")
     st.markdown("""
     Esta aplicación te permite chatear con Claude 3.5 Sonnet usando la API de Anthropic.
     Si cargas un PDF, Claude realizará búsquedas exhaustivas en su contenido.

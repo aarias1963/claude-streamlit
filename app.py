@@ -62,7 +62,7 @@ def detect_and_convert_csv(text):
                     data=csv_data,
                     file_name=f"datos_{i}.csv",
                     mime="text/csv",
-                    key=f"csv_{block_id}"  # Key única para cada botón CSV
+                    key=f"csv_{block_id}"
                 )
             
             excel_data = io.BytesIO()
@@ -74,7 +74,7 @@ def detect_and_convert_csv(text):
                     data=excel_data,
                     file_name=f"datos_{i}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"excel_{block_id}"  # Key única para cada botón Excel
+                    key=f"excel_{block_id}"
                 )
             
         except Exception as e:
@@ -150,35 +150,33 @@ def main():
             # Get and display assistant response
             with st.chat_message("assistant"):
                 try:
-                    # Create system message
-                    messages = [{
-                        "role": "system",
-                        "content": """Eres un asistente especializado en análisis exhaustivo de documentos. Cuando se te pida buscar o analizar información:
-                        1. Realiza una búsqueda EXHAUSTIVA y COMPLETA de TODAS las actividades, ejercicios o elementos que cumplan con los criterios especificados.
-                        2. No omitas ningún resultado que cumpla con los criterios de búsqueda.
-                        3. Organiza los resultados de forma clara, preferiblemente en formato tabular cuando sea apropiado.
-                        4. Si encuentras múltiples elementos, debes listarlos TODOS, no solo algunos ejemplos.
-                        5. Si la búsqueda inicial no es completa, realiza búsquedas adicionales hasta agotar todas las posibilidades.
-                        6. Confirma explícitamente cuando hayas completado la búsqueda exhaustiva."""
-                    }]
-
+                    # Preparar mensajes para la API
+                    formatted_messages = []
+                    
                     # Add PDF content if exists
                     if st.session_state.pdf_content:
-                        messages.append({
+                        formatted_messages.append({
                             "role": "user",
                             "content": f"Contexto del PDF:\n\n{st.session_state.pdf_content}"
                         })
 
                     # Add conversation history
                     for msg in st.session_state.messages:
-                        messages.append({"role": msg.role, "content": msg.content})
+                        formatted_messages.append({"role": msg.role, "content": msg.content})
 
                     # Get response from Claude
                     with st.spinner('Realizando búsqueda exhaustiva...'):
                         response = client.messages.create(
                             model="claude-3-5-sonnet-20241022",
                             max_tokens=4096,
-                            messages=messages
+                            messages=formatted_messages,
+                            system="""Eres un asistente especializado en análisis exhaustivo de documentos. Cuando se te pida buscar o analizar información:
+                            1. Realiza una búsqueda EXHAUSTIVA y COMPLETA de TODAS las actividades, ejercicios o elementos que cumplan con los criterios especificados.
+                            2. No omitas ningún resultado que cumpla con los criterios de búsqueda.
+                            3. Organiza los resultados de forma clara, preferiblemente en formato tabular cuando sea apropiado.
+                            4. Si encuentras múltiples elementos, debes listarlos TODOS, no solo algunos ejemplos.
+                            5. Si la búsqueda inicial no es completa, realiza búsquedas adicionales hasta agotar todas las posibilidades.
+                            6. Confirma explícitamente cuando hayas completado la búsqueda exhaustiva."""
                         )
 
                         assistant_response = response.content[0].text

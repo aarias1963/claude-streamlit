@@ -3,6 +3,8 @@ import anthropic
 import pandas as pd
 import PyPDF2
 import io
+import re
+import uuid
 
 class ChatMessage:
     def __init__(self, role: str, content: str):
@@ -18,6 +20,66 @@ def extract_text_from_pdf(pdf_file):
         return text
     except Exception as e:
         return f"Error al procesar el PDF: {str(e)}"
+
+def detect_and_convert_csv(text):
+    lines = text.split('\n')
+    csv_blocks = []
+    current_block = []
+    in_csv_block = False
+    
+    for line in lines:
+        is_csv_line = (',' in line or '\t' in line) and len(line.strip()) > 0
+        
+        if is_csv_line:
+            if not in_csv_block:
+                in_csv_block = True
+            current_block.append(line)
+        else:
+            if in_csv_block:
+                if len(current_block) > 1:
+                    csv_blocks.append(current_block)
+                current_block = []
+                in_csv_block = False
+            st.write(line)
+    
+    if in_csv_block and len(current_block) > 1:
+        csv_blocks.append(current_block)
+    
+    for i, block in enumerate(csv_blocks):
+        try:
+            block_id = str(uuid.uuid4())
+            
+            df = pd.read_csv(io.StringIO('\n'.join(block)))
+            
+            st.dataframe(df)
+            
+            col1, col2 = st.columns(2)
+            
+            csv_data = df.to_csv(index=False)
+            with col1:
+                st.download_button(
+                    label="📥 Descargar CSV",
+                    data=csv_data,
+                    file_name=f"datos_{i}.csv",
+                    mime="text/csv",
+                    key=f"csv_{block_id}"  # Key única para cada botón CSV
+                )
+            
+            excel_data = io.BytesIO()
+            df.to_excel(excel_data, index=False, engine='openpyxl')
+            excel_data.seek(0)
+            with col2:
+                st.download_button(
+                    label="📥 Descargar Excel",
+                    data=excel_data,
+                    file_name=f"datos_{i}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"excel_{block_id}"  # Key única para cada botón Excel
+                )
+            
+        except Exception as e:
+            st.error(f"Error al procesar datos tabulares: {str(e)}")
+            st.text('\n'.join(block))
 
 def main():
     st.set_page_config(
@@ -73,7 +135,10 @@ def main():
         # Display chat messages
         for message in st.session_state.messages:
             with st.chat_message(message.role):
-                st.write(message.content)
+                if message.role == "assistant":
+                    detect_and_convert_csv(message.content)
+                else:
+                    st.write(message.content)
 
         # Chat input
         if prompt := st.chat_input("Escribe tu mensaje aquí..."):
@@ -117,7 +182,7 @@ def main():
                         )
 
                         assistant_response = response.content[0].text
-                        st.write(assistant_response)
+                        detect_and_convert_csv(assistant_response)
                         st.session_state.messages.append(ChatMessage("assistant", assistant_response))
 
                 except Exception as e:
